@@ -1,29 +1,34 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>com.eon</groupId>
-        <artifactId>eon-common</artifactId>
-        <version>0.0.1-SNAPSHOT</version>
-    </parent>
+
+    <groupId>com.eon</groupId>
     <artifactId>eon-common-bom</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>eon-common-bom</name>
     <description>全局依赖管理控制（BOM）</description>
 
     <properties>
-        <java.version>17</java.version>
-        <spring.boot.version>3.5.5</spring.boot.version>
-        <spring.cloud.version>2025.0.0</spring.cloud.version>
+        <!-- 对齐 Spring 官方兼容矩阵，后续升级只需改动此处 -->
+        <spring.boot.version>3.2.9</spring.boot.version>
+        <spring.cloud.version>2023.0.3</spring.cloud.version>
         <spring.cloud.alibaba.version>2023.0.1.0</spring.cloud.alibaba.version>
-        <spring.authorization.server.version>1.5.2</spring.authorization.server.version>
+        <spring.authorization.server.version>1.2.4</spring.authorization.server.version>
         <mybatis.plus.version>3.5.12</mybatis.plus.version>
+        <mysql.version>8.0.33</mysql.version>
+        <druid.version>1.2.20</druid.version>
+        <caffeine.version>3.1.8</caffeine.version>
+        <slf4j.version>2.0.13</slf4j.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <java.version>17</java.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <!-- Spring 官方 BOM -->
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
@@ -45,7 +50,8 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            <!-- 关键三方版本（非 BOM 覆盖） -->
+
+            <!-- 关键第三方依赖版本（未被上游 BOM 管理） -->
             <dependency>
                 <groupId>com.baomidou</groupId>
                 <artifactId>mybatis-plus-boot-starter</artifactId>
@@ -55,6 +61,26 @@
                 <groupId>org.springframework.security</groupId>
                 <artifactId>spring-security-oauth2-authorization-server</artifactId>
                 <version>${spring.authorization.server.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>mysql</groupId>
+                <artifactId>mysql-connector-java</artifactId>
+                <version>${mysql.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>druid-spring-boot-starter</artifactId>
+                <version>${druid.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.ben-manes.caffeine</groupId>
+                <artifactId>caffeine</artifactId>
+                <version>${caffeine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>${slf4j.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

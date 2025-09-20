@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   简单微服务脚手架（聚合工程）
-  说明：版本按需求声明，具体可用性需在联网环境下校验并适配。
+  说明：统一依赖版本由 eon-common-bom 管理，升级时请先调整 BOM。
   Java 17+ 建议；构建：mvn -q -DskipTests package
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
@@ -16,18 +17,11 @@
     <description>Spring Cloud + Spring Boot + OAuth2 RBAC 快速开发脚手架（eon 结构）</description>
 
     <properties>
-        <!-- 按需求指定版本；注意需在实际构建时验证兼容性 -->
-
-        <spring-cloud.version>1.0</spring-cloud.version>
-        <project.parent.version>1.0</project.parent.version>
-        <project.version>1.0</project.version>
         <java.version>17</java.version>
-        <spring.boot.version>3.5.5</spring.boot.version>
-        <spring.cloud.version>2025.0.0</spring.cloud.version>
-        <spring.cloud.alibaba.version>2023.0.3.3</spring.cloud.alibaba.version>
-        <spring.authorization.server.version>1.5.2</spring.authorization.server.version>
-        <mybatis.plus.version>3.5.12</mybatis.plus.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.enforcer.plugin.version>3.4.1</maven.enforcer.plugin.version>
+        <!-- 与 eon-common-bom 中保持一致 -->
+        <spring.boot.version>3.2.9</spring.boot.version>
     </properties>
 
     <modules>
@@ -42,48 +36,12 @@
 
     <dependencyManagement>
         <dependencies>
-            <!-- 直接在根 POM 管理 BOM，避免 import 自身工程引起循环依赖 -->
             <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-dependencies</artifactId>
-                <version>${spring.boot.version}</version>
+                <groupId>com.eon</groupId>
+                <artifactId>eon-common-bom</artifactId>
+                <version>${project.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.cloud</groupId>
-                <artifactId>spring-cloud-dependencies</artifactId>
-                <version>${spring.cloud.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>com.alibaba.cloud</groupId>
-                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
-                <version>${spring.cloud.alibaba.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <!-- 管理未被 BOM 覆盖的关键依赖版本 -->
-            <dependency>
-                <groupId>com.baomidou</groupId>
-                <artifactId>mybatis-plus-boot-starter</artifactId>
-                <version>${mybatis.plus.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>mysql</groupId>
-                <artifactId>mysql-connector-java</artifactId>
-                <version>8.0.33</version>
-            </dependency>
-            <dependency>
-                <groupId>com.alibaba</groupId>
-                <artifactId>druid-spring-boot-starter</artifactId>
-                <version>1.2.20</version>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.security</groupId>
-                <artifactId>spring-security-oauth2-authorization-server</artifactId>
-                <version>${spring.authorization.server.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -111,5 +69,29 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>${maven.enforcer.plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>enforce-managed-deps</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireDependencyManagement>
+                                    <excludes>com.eon:*</excludes>
+                                    <message>发现未在 eon-common-bom 中登记的第三方依赖，请先更新白名单。</message>
+                                </requireDependencyManagement>
+                                <requireUpperBoundDeps/>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
     </build>
 </project>
