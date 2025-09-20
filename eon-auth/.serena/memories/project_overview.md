@@ -1,0 +1,11 @@
+# 项目概览
+- **项目定位**：`eon-auth` 是一个基于 Spring Authorization Server 的企业级 OAuth2 认证中心，负责用户认证、令牌签发与权限管理。
+- **核心能力**：支持授权码、客户端凭证、刷新令牌、密码等多种授权模式；整合用户账户、角色等领域模型；对接 Redis/MySQL，实现令牌持久化与会话管理。
+- **基础依赖**：Spring Boot 3、Spring Security、Spring Authorization Server、Spring Data JPA、MySQL、Redis，并通过 Spring Cloud Alibaba (Nacos) 做配置与注册中心集成。
+- **项目结构**：
+  - `src/main/java/com/eon/auth/config`：安全与认证服务器配置（过滤器链、客户端、Token、JWK 等）。
+  - `src/main/java/com/eon/auth/support`：密码模式等自定义扩展。
+  - `src/main/java/com/eon/auth/domain` & `repository`：用户账户、关系实体与数据访问。
+  - `src/main/resources`：`application.yml`、SQL 脚本、JWK 配置等。
+  - `test-oauth2-password.sh` 等脚本提供本地联调与验证流程。
+- **运行形态**：打包为 Spring Boot 可执行 Jar，可通过 `java -jar target/*.jar` 启动，默认监听 `localhost:3000`。

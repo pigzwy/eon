@@ -1,0 +1,16 @@
+/home/pig/github/resume/eon/eon-gateway/src/main/java/com/eon/gateway/filter/JwtAuthenticationFilter.java
+/home/pig/github/resume/eon/eon-gateway/src/main/java/com/eon/gateway/security/AuthContext.java
+/home/pig/github/resume/eon/eon-gateway/src/main/java/com/eon/gateway/filter/ResponseHeaderFilter.java
+/home/pig/github/resume/eon/eon-gateway/src/main/java/com/eon/gateway/config/GatewaySecurityProperties.java
+/home/pig/github/resume/eon/eon-gateway/src/main/java/com/eon/gateway/config/GatewayConfiguration.java
+/home/pig/github/resume/eon/eon-gateway/src/main/java/com/eon/gateway/filter/TraceFilter.java
+/home/pig/github/resume/eon/eon-gateway/src/main/java/com/eon/gateway/support/UserKeyResolver.java
+/home/pig/github/resume/eon/eon-gateway/src/main/java/com/eon/gateway/config/GatewayCorsProperties.java
+/home/pig/github/resume/eon/eon-gateway/src/main/java/com/eon/gateway/security/GatewaySecurityProperties.java
+/home/pig/github/resume/eon/eon-gateway/src/main/java/com/eon/gateway/filter/AuthorizationFilter.java
+/home/pig/github/resume/eon/eon-gateway/src/main/java/com/eon/gateway/filter/RequestLogFilter.java
+/home/pig/github/resume/eon/eon-gateway/src/main/java/com/eon/gateway/EonGatewayApplication.java
+/home/pig/github/resume/eon/eon-gateway/src/main/java/com/eon/gateway/controller/FallbackController.java
+/home/pig/github/resume/eon/eon-gateway/src/main/java/com/eon/gateway/security/AuthConstants.java
+/home/pig/github/resume/eon/eon-gateway/src/main/java/com/eon/gateway/config/WebClientConfig.java
+/home/pig/github/resume/eon/eon-gateway/src/main/java/com/eon/gateway/util/PathMatcherUtils.java

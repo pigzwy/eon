@@ -1,0 +1,6 @@
+server:
+  port: 5002
+
+spring:
+  application:
+    name: eon-codegen

@@ -1,0 +1,98 @@
+server:
+  port: 3100
+
+spring:
+  application:
+    name: eon-gateway
+  config:
+    import:
+      - optional:nacos:application-${spring.profiles.active:dev}.yml
+      - optional:nacos:${spring.application.name}-${spring.profiles.active:dev}.yml
+  cloud:
+    nacos:
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:nacos}
+      discovery:
+        server-addr: ${NACOS_HOST:127.0.0.1}:${NACOS_PORT:8848}
+      config:
+        server-addr: ${spring.cloud.nacos.discovery.server-addr}
+        import-check:
+          enabled: false
+    gateway:
+      discovery:
+        locator:
+          enabled: false
+      default-filters:
+        - RemoveRequestHeader=Cookie
+        - RemoveRequestHeader=X-User-Id
+        - RemoveRequestHeader=X-User-Roles
+        - RemoveRequestHeader=X-User-Permissions
+        - RemoveRequestHeader=X-Roles
+        - RemoveRequestHeader=X-Permissions
+        - RemoveRequestHeader=X-Tenant-Id
+        - RemoveRequestHeader=X-Policy-Version
+        - SaveSession
+      routes:
+        - id: user-api
+          uri: lb://eon-user
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - StripPrefix=1
+            - name: RequestSize
+              args: { maxSize: 10MB }
+            - name: Retry
+              args: { retries: 2, statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE, methods: GET }
+            - name: CircuitBreaker
+              args: { name: userApiCB, fallbackUri: forward:/__fallback/user }
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                key-resolver: "#{@userKeyResolver}"
+          metadata:
+            requiredRoles: ["USER_READ"]
+        - id: auth-api
+          uri: http://eon-auth:3000
+          predicates:
+            - Path=/.well-known/**,/oauth2/**,/userinfo
+          filters:
+            - StripPrefix=0
+
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${AUTH_SERVER_ISSUER_URI:http://localhost:3000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,gateway,env
+  endpoint:
+    health:
+      show-details: when_authorized
+
+gateway:
+  security:
+    jwksUri: ${AUTH_SERVER_JWKS_URI:http://eon-auth:3000/oauth2/jwks}
+    issuer: ${AUTH_SERVER_ISSUER_URI:http://localhost:3000}
+    whitelist:
+      - /.well-known/**
+      - /oauth2/jwks
+      - /oauth2/token
+      - /oauth2/introspect
+      - /api/auth/login
+      - /api/auth/refresh
+      - /actuator/**
+      - /health
+  cors:
+    # 生产环境请在配置中心覆盖，多个用逗号分隔
+    allowed-origins: http://localhost:5173

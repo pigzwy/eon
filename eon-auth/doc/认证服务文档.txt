@@ -1,0 +1,512 @@
+# 零信任方案A 对接速览
+
+- **核心目标**：由认证服务签发包含 `aud`、`uid`、`tenant`、`pv`、`roles`、`permissions` 等声明的访问令牌，网关执行签名/过期/audience 校验并零信任透传；下游仅信任 JWT 自己校验的结果。
+- **关键配置**：
+  ```yaml
+  # 配置中心（示例）
+  gateway:
+    security:
+      jwks-uri: http://auth-service/oauth2/jwks
+      issuer: https://auth.eon.internal
+      audience: eon-internal
+
+  security:
+    oauth2:
+      authorization-server:
+        issuer: https://auth.eon.internal
+        access-token:
+          audience:
+            - eon-internal
+  ```
+  - `gateway.security.audience`：网关校验 `aud` 时的白名单；必须与认证服务配置保持一致。
+  - `security.oauth2.authorization-server.access-token.audience`：认证服务在访问令牌中写入的 `aud` 值，可配置多租户/多系统数组。
+- **claim 对应关系**：
+  | Claim | 来源 | 说明 |
+  | --- | --- | --- |
+  | `uid` | 用户中心 `users.id` | 必填，作为业务主键 |
+  | `tenant` | `users.tenant_id` | 可选；缺省下游自行兜底 |
+  | `pv` | `users.policy_version` | 驱动权限缓存刷新 |
+  | `roles` | `user_roles` 查询结果 | 字符串数组，与 `X-Roles` 提示头保持一致 |
+  | `permissions` | `role_permissions` 聚合 | 用于本地缓存/审计 |
+  | `authorities` | `ROLE_` + `roles` + `permissions` | 兼容 Spring Security 默认授权模型 |
+  | `aud` | 配置中心 `security.oauth2.authorization-server.access-token.audience` | 供网关/下游校验 |
+- **协作流程**：
+  1. 客户端调用认证服务获取 Access Token（JWT）。
+  2. 网关使用 JWK 验证签名，并强制校验 `iss` 与 `aud`；将 `X-User-Id`、`X-Roles`、`X-Tenant-Id` 等提示头透传下游。
+  3. 下游服务通过 `@CurrentUser AuthenticatedUser` 或 `UserContextHolder` 读取用户快照，独立完成授权决策。
+  4. 当 `roles/permissions/policyVersion` 发生变化时，用户服务提升策略版本并提示客户端刷新令牌。
+
+# 一、总体思路
+
+Spring Authorization Server（SAS）并不内置 `password` 授权类型，但它提供了扩展点让我们自定义：
+
+1. **定义自定义授权类型**：`new AuthorizationGrantType("password")`
+2. **定义 Converter**：从 `/oauth2/token` 的表单参数中读取 `grant_type=password`、`username`、`password`、可选 `scope`，并封装成自定义的 `Authentication`。
+3. **定义 Provider**：用 Spring Security 的 `AuthenticationManager`（通常是 `DaoAuthenticationProvider` + `UserDetailsService`）校验用户名/密码，成功后通过 `OAuth2TokenGenerator` 生成 `access_token`（和可选 `refresh_token`），最终返回 `OAuth2AccessTokenAuthenticationToken`。
+4. **在 AuthorizationServer 的 TokenEndpoint 注册**：把你的 `deviceClientAuthenticationConverter` 去掉（或不再添加），换成我们新的 `Password` Converter + Provider。
+5. **为 RegisteredClient 开启支持**：配置客户端允许 `password` 与 `refresh_token` 授权类型、密钥、scope 等。
+
+---
+
+# 二、代码实现（可直接拷贝给 Codex）
+
+## 1）定义自定义 Token：`OAuth2PasswordAuthenticationToken`
+
+```java
+package com.eon.auth.password;
+
+import org.springframework.security.authentication.AbstractAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.util.Assert;
+
+import java.util.*;
+
+public class OAuth2PasswordAuthenticationToken extends AbstractAuthenticationToken {
+
+    private final Authentication clientPrincipal;
+    private final String username;
+    private final String password;
+    private final Set<String> scopes;
+    private final Map<String, Object> additionalParameters;
+
+    public OAuth2PasswordAuthenticationToken(
+            Authentication clientPrincipal,
+            String username,
+            String password,
+            Set<String> scopes,
+            Map<String, Object> additionalParameters) {
+
+        super(null);
+        Assert.notNull(clientPrincipal, "clientPrincipal cannot be null");
+        this.clientPrincipal = clientPrincipal;
+        this.username = username;
+        this.password = password;
+        this.scopes = (scopes != null ? Collections.unmodifiableSet(scopes) : Collections.emptySet());
+        this.additionalParameters = (additionalParameters != null ? Collections.unmodifiableMap(additionalParameters) : Collections.emptyMap());
+        setAuthenticated(false);
+    }
+
+    public Authentication getClientPrincipal() {
+        return clientPrincipal;
+    }
+
+    public String getUsername() { return username; }
+
+    public String getPassword() { return password; }
+
+    public Set<String> getScopes() { return scopes; }
+
+    public Map<String, Object> getAdditionalParameters() { return additionalParameters; }
+
+    @Override
+    public Object getCredentials() {
+        return password;
+    }
+
+    @Override
+    public Object getPrincipal() {
+        return username;
+    }
+}
+```
+
+## 2）Converter：`OAuth2PasswordAuthenticationConverter`
+
+```java
+package com.eon.auth.password;
+
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.server.authorization.web.authentication.OAuth2TokenEndpointFilter;
+import org.springframework.security.web.authentication.AuthenticationConverter;
+import org.springframework.util.MultiValueMap;
+import org.springframework.util.StringUtils;
+
+import java.util.*;
+
+public class OAuth2PasswordAuthenticationConverter implements AuthenticationConverter {
+
+    public static final AuthorizationGrantType PASSWORD_GRANT_TYPE = new AuthorizationGrantType("password");
+
+    @Override
+    public Authentication convert(HttpServletRequest request) {
+        if (!"POST".equals(request.getMethod())) {
+            return null;
+        }
+
+        // 只处理 grant_type=password 的请求
+        MultiValueMap<String, String> params = OAuth2TokenEndpointFilter.getFormParameters(request);
+        String grantType = params.getFirst("grant_type");
+        if (!"password".equals(grantType)) {
+            return null;
+        }
+
+        // 当前已通过 client 认证（Basic/或 client_secret_post）：
+        Authentication clientPrincipal = SecurityContextHolder.getContext().getAuthentication();
+
+        String username = params.getFirst("username");
+        String password = params.getFirst("password");
+        if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
+            // 让 Provider 去抛异常/处理
+        }
+
+        Set<String> scopes = new HashSet<>();
+        String scope = params.getFirst("scope");
+        if (StringUtils.hasText(scope)) {
+            scopes.addAll(Arrays.asList(scope.split("\\s+")));
+        }
+
+        Map<String, Object> additional = new HashMap<>();
+        params.forEach((k, v) -> {
+            if (!List.of("grant_type", "username", "password", "scope").contains(k)) {
+                additional.put(k, (v.size() == 1 ? v.get(0) : v));
+            }
+        });
+
+        return new OAuth2PasswordAuthenticationToken(clientPrincipal, username, password, scopes, additional);
+    }
+}
+```
+
+## 3）Provider：`OAuth2PasswordAuthenticationProvider`
+
+```java
+package com.eon.auth.password;
+
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.core.*;
+import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
+import org.springframework.security.oauth2.server.authorization.*;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
+import org.springframework.security.oauth2.server.authorization.token.*;
+import org.springframework.util.CollectionUtils;
+
+import java.time.Instant;
+import java.util.*;
+
+public class OAuth2PasswordAuthenticationProvider implements org.springframework.security.authentication.AuthenticationProvider {
+
+    private final OAuth2AuthorizationService authorizationService;
+    private final OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator;
+    private final AuthenticationManager userAuthManager;
+
+    public OAuth2PasswordAuthenticationProvider(
+            OAuth2AuthorizationService authorizationService,
+            OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator,
+            AuthenticationManager userAuthManager) {
+        this.authorizationService = authorizationService;
+        this.tokenGenerator = tokenGenerator;
+        this.userAuthManager = userAuthManager;
+    }
+
+    @Override
+    public Authentication authenticate(Authentication authentication) throws OAuth2AuthenticationException {
+        OAuth2PasswordAuthenticationToken passwordAuth = (OAuth2PasswordAuthenticationToken) authentication;
+
+        // 1) 校验 client
+        OAuth2ClientAuthenticationToken clientPrincipal = getAuthenticatedClientElseThrow(passwordAuth.getClientPrincipal());
+        RegisteredClient registeredClient = clientPrincipal.getRegisteredClient();
+        if (registeredClient == null || registeredClient.getAuthorizationGrantTypes().stream()
+                .noneMatch(gt -> "password".equals(gt.getValue()))) {
+            throw new OAuth2AuthenticationException(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT);
+        }
+
+        // 2) 用 AuthenticationManager 校验用户账号密码（走 UserDetailsService）
+        Authentication userPrincipal;
+        try {
+            userPrincipal = userAuthManager.authenticate(
+                    new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                            passwordAuth.getUsername(), passwordAuth.getPassword()
+                    )
+            );
+        } catch (Exception ex) {
+            throw new OAuth2AuthenticationException(OAuth2ErrorCodes.ACCESS_DENIED);
+        }
+
+        // 3) 合法 scope
+        Set<String> authorizedScopes = new HashSet<>();
+        if (!CollectionUtils.isEmpty(passwordAuth.getScopes())) {
+            for (String requestedScope : passwordAuth.getScopes()) {
+                if (registeredClient.getScopes().contains(requestedScope)) {
+                    authorizedScopes.add(requestedScope);
+                }
+            }
+        } else {
+            authorizedScopes.addAll(registeredClient.getScopes());
+        }
+
+        // 4) 生成 access token
+        DefaultOAuth2TokenContext tokenContext = DefaultOAuth2TokenContext.builder()
+                .registeredClient(registeredClient)
+                .principal(userPrincipal)
+                .authorizationServerContext(AuthorizationServerContextHolder.getContext())
+                .authorizedScopes(authorizedScopes)
+                .tokenType(OAuth2TokenType.ACCESS_TOKEN)
+                .authorizationGrantType(new AuthorizationGrantType("password"))
+                .authorizationGrant(passwordAuth)
+                .build();
+
+        OAuth2Token accessToken = this.tokenGenerator.generate(tokenContext);
+        if (accessToken == null) {
+            throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.SERVER_ERROR, "Failed to generate access token", null));
+        }
+
+        OAuth2AccessToken oAuth2AccessToken = new OAuth2AccessToken(
+                OAuth2AccessToken.TokenType.BEARER,
+                accessToken.getTokenValue(),
+                accessToken.getIssuedAt() != null ? accessToken.getIssuedAt() : Instant.now(),
+                accessToken.getExpiresAt(),
+                authorizedScopes
+        );
+
+        // 5) 可选：生成 refresh token（如果客户端允许）
+        OAuth2RefreshToken refreshToken = null;
+        if (registeredClient.getAuthorizationGrantTypes().stream().anyMatch(gt -> AuthorizationGrantType.REFRESH_TOKEN.getValue().equals(gt.getValue()))
+        ) {
+            DefaultOAuth2TokenContext refreshContext = DefaultOAuth2TokenContext.builder()
+                    .registeredClient(registeredClient)
+                    .principal(userPrincipal)
+                    .authorizationServerContext(AuthorizationServerContextHolder.getContext())
+                    .tokenType(OAuth2TokenType.REFRESH_TOKEN)
+                    .authorizationGrantType(new AuthorizationGrantType("password"))
+                    .authorizationGrant(passwordAuth)
+                    .build();
+
+            OAuth2Token generatedRefresh = this.tokenGenerator.generate(refreshContext);
+            if (generatedRefresh instanceof OAuth2RefreshToken rt) {
+                refreshToken = rt;
+            }
+        }
+
+        // 6) 保存 Authorization（便于之后 introspection / revoke）
+        OAuth2Authorization authorization = OAuth2Authorization.withRegisteredClient(registeredClient)
+                .principalName(userPrincipal.getName())
+                .authorizationGrantType(new AuthorizationGrantType("password"))
+                .attribute(Principal.class.getName(), userPrincipal)
+                .accessToken(oAuth2AccessToken)
+                .refreshToken(refreshToken)
+                .build();
+        this.authorizationService.save(authorization);
+
+        // 7) 返回给 TokenEndpoint
+        Map<String, Object> additionalParameters = Collections.emptyMap();
+        return new OAuth2AccessTokenAuthenticationToken(registeredClient, clientPrincipal, oAuth2AccessToken, refreshToken, additionalParameters);
+    }
+
+    @Override
+    public boolean supports(Class<?> authentication) {
+        return OAuth2PasswordAuthenticationToken.class.isAssignableFrom(authentication);
+    }
+
+    private static OAuth2ClientAuthenticationToken getAuthenticatedClientElseThrow(Authentication authentication) {
+        if (authentication instanceof OAuth2ClientAuthenticationToken clientAuth && clientAuth.isAuthenticated()) {
+            return clientAuth;
+        }
+        throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_CLIENT);
+    }
+}
+```
+
+### 3.1）访问令牌 `audience` 配置
+
+> 自 2025-09 起，访问令牌会根据配置中心写入 `aud` 声明，用于网关与下游服务的零信任校验。默认允许配置多个受众标签，并自动去重、去空。
+
+```java
+@ConfigurationProperties(prefix = "security.oauth2.authorization-server")
+public class AuthorizationServerTokenProperties {
+    private final AccessToken accessToken = new AccessToken();
+    public AccessToken getAccessToken() { return accessToken; }
+
+    public static class AccessToken {
+        private List<String> audience = new ArrayList<>();
+        public List<String> getAudience() { return Collections.unmodifiableList(audience); }
+        public void setAudience(List<String> audience) {
+            this.audience = new ArrayList<>();
+            if (audience == null) {
+                return;
+            }
+            for (String value : audience) {
+                if (value == null) {
+                    continue;
+                }
+                String trimmed = value.trim();
+                if (trimmed.isEmpty()) {
+                    continue;
+                }
+                if (trimmed.contains(",")) {
+                    Arrays.stream(trimmed.split(","))
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .forEach(this.audience::add);
+                } else {
+                    this.audience.add(trimmed);
+                }
+            }
+        }
+    }
+}
+```
+
+```java
+@Bean
+public OAuth2TokenCustomizer<JwtEncodingContext> idTokenCustomizer(UserAuthorityService userAuthorityService,
+                                                                   AuthorizationServerTokenProperties properties) {
+    return context -> {
+        boolean accessToken = OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType());
+        boolean idToken = OidcParameterNames.ID_TOKEN.equals(context.getTokenType().getValue());
+        if (!accessToken && !idToken) {
+            return;
+        }
+
+        Authentication principal = context.getPrincipal();
+        if (principal == null) {
+            return;
+        }
+
+        List<String> audiences = properties.getAccessToken().getAudience();
+        if (accessToken && !audiences.isEmpty()) {
+            context.getClaims().audience(audiences);
+        }
+
+        UserAuthoritySnapshot snapshot = userAuthorityService.loadAuthoritySnapshot(principal.getName());
+        if (!snapshot.hasUser()) {
+            return;
+        }
+
+        context.getClaims().claim("uid", snapshot.userId());
+        // ...（下方保持原有 tenant/pv/roles/permissions 写入逻辑）
+    };
+}
+```
+
+> ⚠️ 注意：ID Token 的 `aud` 仍由 Spring Authorization Server 按规范写入（通常等于客户端 ID），自定义逻辑仅针对访问令牌补充内部受众。
+
+## 4）在 Authorization Server 配置里**注册 Converter & Provider**（替换掉 device 的 converter）
+
+> 你目前文件里有 `AuthorizationServerConfig.java` / `DefaultSecurityConfig.java`。由于你发过来的文件被省略了部分内容，我给出一个**增量片段**，直接把关键代码加到 `authorizationServerSecurityFilterChain` 的 `OAuth2AuthorizationServerConfigurer` 那块即可（把原本 `.tokenEndpoint(tokenEndpoint -> tokenEndpoint.accessTokenRequestConverter(deviceClientAuthenticationConverter)` 这种去掉/注释掉）：
+
+```java
+// imports 需要新增：
+// import com.eon.auth.password.OAuth2PasswordAuthenticationConverter;
+// import com.eon.auth.password.OAuth2PasswordAuthenticationProvider;
+
+@Bean
+@Order(Ordered.HIGHEST_PRECEDENCE)
+SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http,
+        OAuth2AuthorizationService authorizationService,
+        OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator,
+        AuthenticationManager authenticationManager) throws Exception {
+
+    OAuth2AuthorizationServerConfigurer authorizationServerConfigurer = new OAuth2AuthorizationServerConfigurer();
+
+    // 用 password 的 Converter 替换 device 的 converter
+    authorizationServerConfigurer
+        .tokenEndpoint(tokenEndpoint ->
+                tokenEndpoint
+                    .accessTokenRequestConverter(new OAuth2PasswordAuthenticationConverter())
+                    .authenticationProvider(new OAuth2PasswordAuthenticationProvider(
+                            authorizationService, tokenGenerator, authenticationManager
+                    ))
+        );
+
+    http.apply(authorizationServerConfigurer);
+
+    // 其他和你现有一致，比如 OIDC、端点匹配器、异常处理等
+    return http.build();
+}
+```
+
+> 如果你当前把 `OAuth2TokenGenerator`/`AuthorizationService` 放在别处定义，不变；关键是注入进来。
+
+## 5）暴露 `AuthenticationManager`（用于校验用户名/密码）
+
+在你的 `DefaultSecurityConfig.java`（或同等安全配置）里，确保存在：
+
+```java
+@Bean
+public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
+    return configuration.getAuthenticationManager();
+}
+
+@Bean
+public PasswordEncoder passwordEncoder() {
+    return new BCryptPasswordEncoder();
+}
+
+@Bean
+public UserDetailsService userDetailsService() {
+    // 你已有的实现也行（内存/H2/JDBC）。确保密码用 PasswordEncoder 编码。
+    // return new InMemoryUserDetailsManager(...);
+}
+```
+
+> 你如果已经有 `DaoAuthenticationProvider` 也可以手动注册，但通过 `AuthenticationConfiguration` 拿默认的 `AuthenticationManager` 更省心，只要你的 `UserDetailsService` 与 `PasswordEncoder` 都已在容器里。
+
+## 6）让客户端支持 `password` 和 `refresh_token`
+
+在创建 `RegisteredClient` 的地方，添加：
+
+```java
+RegisteredClient client = RegisteredClient.withId(UUID.randomUUID().toString())
+    .clientId("your-client-id")
+    .clientSecret("{noop}your-client-secret")
+    // 开启 password & refresh_token
+    .authorizationGrantType(new AuthorizationGrantType("password"))
+    .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+    // 其他你已有的 grant type 保留/去掉均可
+    .scope("openid")
+    .scope("profile")
+    .scope("read")
+    .scope("write")
+    .tokenSettings(TokenSettings.builder()
+        // 根据需要配置 access_token / refresh_token TTL
+        .build())
+    .clientSettings(ClientSettings.builder()
+        .requireProofKey(false) // password 不用 PKCE
+        .requireAuthorizationConsent(false)
+        .build())
+    .build();
+```
+
+> 如果你是 JDBC 版的 `RegisteredClientRepository`，就更新对应记录，确保 `authorization_grant_types` 包含 `password, refresh_token`。
+
+---
+
+# 三、调用示例（验证）
+
+**获取 token：**
+
+```bash
+curl -u your-client-id:your-client-secret \
+  -d "grant_type=password" \
+  -d "username=alice" \
+  -d "password=alice-password" \
+  -d "scope=read write" \
+  http://localhost:9000/oauth2/token
+```
+
+**使用 refresh\_token 刷新：**
+
+```bash
+curl -u your-client-id:your-client-secret \
+  -d "grant_type=refresh_token" \
+  -d "refresh_token=<上一步返回的refresh_token>" \
+  http://localhost:9000/oauth2/token
+```
+
+---
+
+# 四、常见坑位 & 建议
+
+* **CORS/跨域**：千万不要让浏览器前端直接把资源所有者的密码 POST 到授权服务器（尤其第三方域）。这类方案仅适合 **受控后端对后端** 或 **受控一方原生 App**。
+* **与会话共存**：ROPC 通常不依赖浏览器会话（session），注意你 `DefaultSecurityConfig` 里如果还有基于表单登录的配置，不要让它“吃掉” `/oauth2/token` 的 POST。
+* **错误映射**：我在 Provider 里对用户认证失败用了 `ACCESS_DENIED`。你也可以更细化为 `INVALID_GRANT` 并携带描述。
+* **多因子**：如需 MFA，可在 Provider 校验成功后，再对 `additionalParameters` 里带的 OTP/SMS 做二次校验。
+* **审计与吊销**：保存 `OAuth2Authorization` 后，后续可用内置 revocation/introspection 端点，你的现有配置一般已经启用。
+
+---
+
+如果你把现有的 `AuthorizationServerConfig`/`DefaultSecurityConfig` 关键片段贴给我，我也可以帮你把**准确的增量改动**直接标注到你的文件里。现在这版已经可以直接交给 Codex 去写类与粘合代码了。

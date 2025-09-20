@@ -1,0 +1,306 @@
+# Spring Cloud Gateway（WebFlux）网关设计方案
+
+> 目标：为现有【用户服务 user-service】与【认证服务 auth-service】提供统一入口，完成路由、鉴权、限流、观测与灰度发布等主流能力；方案可直接交给“写代码的同学/代理（如 Codex）”落地。
+
+---
+
+## 1. 架构与选型
+
+* **框架**：Spring Cloud Gateway + Spring WebFlux（Reactor），Spring Boot 3.x。
+* **注册/发现**：Eureka / Nacos / Consul 三选一（下文以 Nacos/Eureka 表达“发现端点”）。
+* **配置中心**：Spring Cloud Config / Nacos Config（支持热更新 `@RefreshScope`）。
+* **认证**：JWT（RS256）优先；支持 Opaque Token 回退（/introspect）。
+* **授权**：网关内基于 **RBAC**（从 JWT claims 或后端查询），本地缓存（Caffeine）+ 失效事件。
+* **限流**：内置 `RedisRateLimiter`（令牌桶），维度：IP、用户、路由。
+* **弹性**：Spring Cloud CircuitBreaker（Resilience4j）+ 超时 + Retry（幂等路由）。
+* **观测**：Micrometer + Prometheus + Grafana；分布式追踪（Brave/Sleuth 兼容 OpenTelemetry）对接 Zipkin/Tempo。
+* **日志**：JSON 结构化日志 + TraceId/SpanId 注入。
+* **协议**：HTTP/1.1、HTTP/2；WebSocket 直通。
+* **部署**：无状态多副本，前置 LB/Ingress，TLS 终止于 LB 或网关。
+
+---
+
+## 2. 路由与网关职责
+
+### 2.1 典型路由表（示例）
+
+| 路由ID       | 断言                        | 目的服务                | 过滤器（顺序示例）                                                                       |
+| ---------- | ------------------------- | ------------------- | ------------------------------------------------------------------------------- |
+| user-api   | `Path=/api/users/**`      | `lb://user-service` | Trace → CORS → SizeLimit → **Auth** → RBAC → RateLimit → Retry/CB → RespRewrite |
+| auth-api   | `Path=/api/auth/**`       | `lb://auth-service` | Trace → CORS → SizeLimit → **NoAuth（白名单）**                                      |
+| static-cdn | `Host=static.example.com` | `http://cdn…`       | Trace → CacheHeader                                                             |
+
+> 白名单：`/api/auth/login`, `/api/auth/refresh`, `/api/auth/public-keys`, `/actuator/**`, `/health` 等。
+
+### 2.2 路由配置片段（交付给开发）
+
+```yaml
+spring:
+  cloud:
+    gateway:
+      default-filters:
+        - RemoveRequestHeader=Cookie
+        - SaveSession
+      routes:
+        - id: user-api
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - name: RequestSize
+              args: { maxSize: 10MB }
+            - name: Retry
+              args: { retries: 2, statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE, methods: GET }
+            - name: CircuitBreaker
+              args: { name: userApiCB, fallbackUri: forward:/__fallback/user }
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                key-resolver: "#{@userKeyResolver}"
+        - id: auth-api
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/auth/**
+```
+
+---
+
+## 3. 鉴权与授权设计
+
+### 3.1 JWT 模式（推荐）
+
+* **签名算法**：RS256。Auth 服务暴露 `/.well-known/jwks.json`（含 `kid`）。
+* **验证流程**（GlobalFilter：`AuthFilter`，顺序在 RateLimit 之前）：
+
+  1. 解析 `Authorization: Bearer <token>`。无 token 且非白名单 → 401。
+  2. 根据 `kid` 从本地 **JWK 缓存** 取公钥；未命中即时拉取（带 TTL 与熔断）。
+  3. 校验签名、过期、`aud/iss`、`nbf`；失败 → 401（`WWW-Authenticate`）。
+  4. 提取 claims：`sub`（userId）、`scope`/`roles`、`tenant` 等，放入 `ReactiveSecurityContextHolder` 与 **下游透传头**（清单见 3.3）。
+* **刷新**：`/api/auth/refresh` 在白名单，返回新 token（旧 token 过期前刷新）。
+* **配置要求**：在配置中心显式声明 `gateway.security.audience` 并与认证服务保持一致；示例：
+
+  ```yaml
+  gateway:
+    security:
+      jwks-uri: http://auth-service/oauth2/jwks
+      issuer: https://auth.eon.internal
+      audience:
+        - eon-internal
+  ```
+
+### 3.2 Opaque Token 回退
+
+* 无法本地验证时，走 `auth-service /oauth2/introspect`；结果本地短缓存（1\~5s）。
+
+### 3.3 下游透传与隐私
+
+* 透传头（内部）：`X-User-Id`, `X-Roles`, `X-Policy-Version`, `X-Tenant-Id`, `X-Trace-Id`（兼容头：`X-User-Roles`, `X-User-Permissions`）。
+* **提示头治理**：入口 `RemoveRequestHeader=X-User-*` 清理伪造值，网关只保留自身注入的提示头；下游应逐步迁移到 `X-Roles`/`X-Permissions` 为主，旧头仅用作过渡。
+* **绝不透传**：原始 JWT（可选：若下游需要，使用短期下游 token 交换）。
+
+### 3.4 RBAC 与权限缓存
+
+* **策略**：优先用 JWT 中的 `roles/permissions`；如需细粒度（资源级），网关查询 `user-service /api/users/{id}/permissions`（本地 Caffeine 缓存 30s）。
+* **判定点**：`AuthorizationFilter` 在路由前，根据 **路由元数据**（所需角色/权限）校验：
+
+  ```yaml
+  metadata:
+    requiredRoles: ["USER_READ"]
+  ```
+
+---
+
+## 4. 网关过滤器链（建议顺序）
+
+1. **TraceFilter**：生成/传播 `traceId, spanId`。
+2. **IpBlacklistFilter**（可选）：拒绝恶意源。
+3. **CorsWebFilter**：从配置中心加载允许域、方法、头。
+4. **RequestSizeFilter**：限制上传体积。
+5. **DecryptionFilter**（可选）：入站敏感字段解密。
+6. **AuthFilter**：JWT/Introspect。
+7. **AuthorizationFilter**：RBAC 判定（基于路由 `metadata`）。
+8. **RateLimiterFilter**：`RedisRateLimiter`，KeyResolver 支持：
+
+   * 已登录：`userId`
+   * 未登录：`clientIp`
+   * 也可 `Path` 维度组合
+9. **Resilience Filters**：超时、重试、熔断（按 HTTP 方法与幂等性开启）。
+10. **RequestLogFilter**：采样式日志（入参脱敏：密码、token、身份证等）。
+11. **ResponseRewriteFilter**：统一错误格式、分页头、跨站安全头（HSTS、X-Frame-Options）。
+
+> 过滤器实现都基于 **Reactive** 非阻塞 IO，避免阻塞调用（如 DB/远程同步）——必要时采用 WebClient + 超时 + 缓存。
+
+---
+
+## 5. 统一错误与返回规范
+
+* **错误响应**（示例）：
+
+```json
+{ "code": "UNAUTHORIZED", "message": "Invalid or expired token", "traceId": "…" }
+```
+
+* 常见码：
+
+  * `UNAUTHORIZED`(401), `FORBIDDEN`(403), `RATE_LIMITED`(429), `UPSTREAM_TIMEOUT`(504), `UPSTREAM_UNAVAILABLE`(502)
+* **Fallback**：熔断降级路径 `forward:/__fallback/{route}`，返回 5xx 统一体且带 `traceId`。
+
+---
+
+## 6. 安全与合规
+
+* **TLS**：外部全链路 HTTPS；内部可 mTLS（可选）。
+* **CORS**：最小放行，支持预检缓存；生产禁用 `*`。
+* **Headers**：`X-Content-Type-Options: nosniff`, `Content-Security-Policy`（如需前端透出），`HSTS`。
+* **防重放**：对敏感写操作可选 `X-Idempotency-Key`。
+* **限流/熔断保护**：针对登录、验证码接口设置更严策略。
+* **审计日志**：登录、权限拒绝、管理接口访问必记审计。
+
+---
+
+## 7. 可观测性与运维
+
+* **Metrics**：QPS、P95/P99、后端错误率、限流命中数、鉴权失败原因等维度。
+* **Tracing**：跨服务传播 `traceparent`/`b3`；在日志中打印路由ID、目标实例。
+* **Actuator**：`/actuator/health`, `/metrics`, `/env`, `/gateway/routes`（受限访问，走内网+鉴权）。
+* **灰度发布**：
+
+  * **Header/Query/Weight** 断言：按用户特征（比如 `X-Tenant-Id`、`% userId hash`）打到 v2 服务；
+  * 路由示例：
+
+    ```yaml
+    - id: user-api-v1
+      predicates: [ Path=/api/users/**, Weight=user, 90 ]
+    - id: user-api-v2
+      predicates: [ Path=/api/users/**, Weight=user, 10, Header=X-Canary, true ]
+    ```
+* **配置热更**：灰度权重、白名单、限流阈值走配置中心。
+
+---
+
+## 8. WebSocket / SSE / 大文件
+
+* **WebSocket**：`RoutePredicateFactory` 自动透传（禁用影响帧流的过滤器，如响应改写）。
+* **SSE**：保持响应流式；禁用重试过滤器。
+* **上传下载**：启用直通与分片；限制 `maxSize`，并在存储层做病毒扫描（如侧路异步）。
+
+---
+
+## 9. 目录结构（建议）
+
+```
+gateway/
+ ├─ src/main/java/com/acme/gw/
+ │   ├─ config/ (CORS、Route、Security、Resilience)
+ │   ├─ filter/
+ │   │   ├─ TraceFilter.java
+ │   │   ├─ AuthFilter.java
+ │   │   ├─ AuthorizationFilter.java
+ │   │   ├─ RateLimitKeyResolver.java
+ │   │   └─ ResponseRewriteFilter.java
+ │   ├─ security/
+ │   │   ├─ JwtVerifier.java (JWK 缓存+验签)
+ │   │   └─ PermissionService.java
+ │   ├─ controller/
+ │   │   ├─ FallbackController.java
+ │   │   └─ ActuatorProxyController.java (可选)
+ │   └─ util/ (Context、脱敏、常量)
+ └─ resources/
+     ├─ application.yml
+     └─ bootstrap.yml
+```
+
+---
+
+## 10. 关键实现要点（伪代码/接口约定）
+
+### 10.1 `JwtVerifier`
+
+* 功能：读取 `kid` → 本地缓存 JWK → 验签 & 基本 claim 校验（`iss/aud/exp/nbf`）。
+* 失败分类：`TOKEN_EXPIRED` / `SIGNATURE_INVALID` / `CLAIM_INVALID` / `JWKS_UNAVAILABLE`。
+
+### 10.2 `AuthFilter`（GlobalFilter + Ordered）
+
+```java
+// 伪代码
+if (isWhitelisted(exchange.getRequest())) return chain.filter(exchange);
+
+String token = resolveBearer(exchange);
+if (token == null) return unauthorized("MISSING_TOKEN");
+
+JwtClaims claims = jwtVerifier.verify(token);
+putIntoSecurityContext(claims);
+injectDownstreamHeaders(exchange, claims);
+
+return chain.filter(exchange);
+```
+
+### 10.3 `AuthorizationFilter`
+
+* 输入：路由 `metadata.requiredRoles` / `requiredPermissions`；
+* 逻辑：从 `SecurityContext` 取 `roles/permissions`，不满足 → 403；
+* 可选：未命中 claims 时，异步调用 `user-service` 拉权限（带缓存）。
+
+### 10.4 限流 KeyResolver
+
+* 登录用户：`"user:" + userId`；未登录：`"ip:" + clientIp`；可按 `path` 拼接形成多维度。
+
+---
+
+## 11. 与后端服务的接口契约
+
+* **Auth Service**
+
+  * `GET /.well-known/jwks.json` → JWK Set（含 `kid`, `kty`, `n`, `e`）。
+  * `POST /api/auth/login` → `{ access_token, refresh_token, exp, token_type }`
+  * `POST /api/auth/refresh` → 同上。
+  * （可选）`POST /oauth2/introspect` → `{ active, sub, scope, exp, ... }`
+
+* **User Service**
+
+  * `GET /api/users/{id}/permissions` → `["USER_READ","USER_WRITE",...]`（缓存 30s）
+  * 错误返回统一 `code/message/traceId`。
+
+---
+
+## 12. 非功能性指标（SLO 参考）
+
+* **可用性**：≥ 99.9%
+* **延迟**：P95 ≤ 50ms（网关纯转发），鉴权开销 ≤ 5ms（命中 JWK 缓存）
+* **吞吐**：单实例 ≥ 2k RPS（视实例规格）
+* **冷启动**：≤ 5s
+
+---
+
+## 13. 验收清单（交付与自测）
+
+* [ ] 路由与服务发现联通；`/actuator/gateway/routes` 可见。
+* [ ] 白名单正确放行，受保护路由缺失 token 返回 401。
+* [ ] JWK 缓存命中率 ≥ 99%，失效自动刷新。
+* [ ] 角色/权限路由阻断正确（403）。
+* [ ] 限流命中返回 429，带 `Retry-After` 语义。
+* [ ] 熔断触发返回统一降级体，包含 `traceId`。
+* [ ] CORS 预检通过，生产不放开 `*`。
+* [ ] WebSocket 与 SSE 路径验证。
+* [ ] 指标、日志、追踪三件套接通仪表盘。
+* [ ] 配置中心动态调参（限流阈值、灰度权重）生效。
+
+---
+
+## 14. 交付给“写代码的同学”的补充说明
+
+1. **严格避免阻塞**：所有外呼（JWK 拉取、权限查询）使用 `WebClient` + 超时（≤300ms）+ 缓存。
+2. **多环境配置**：`application-{dev,staging,prod}.yml` 分离；密钥走密管（Vault/KMS），不入仓。
+3. **依赖建议**：
+
+   * `spring-cloud-starter-gateway`
+   * `spring-boot-starter-actuator`
+   * `spring-cloud-starter-circuitbreaker-reactor-resilience4j`
+   * `spring-boot-starter-data-redis-reactive`
+   * `micrometer-registry-prometheus`
+   * `spring-boot-starter-oauth2-resource-server`（若走 Spring 官方 JWT 校验器）
+
+---
+
+需要的话，我可以把以上关键类（`AuthFilter`, `AuthorizationFilter`, `JwtVerifier`, `RateLimitKeyResolver`, `FallbackController`）与 `application.yml` 模板生成出来，按你们的包名/注册中心来定制。

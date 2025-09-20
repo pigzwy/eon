@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: eon-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: eon
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./src/main/resources/sql:/docker-entrypoint-initdb.d
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  redis:
+    image: redis:7-alpine
+    container_name: eon-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  nacos:
+    image: nacos/nacos-server:v2.2.3
+    container_name: eon-nacos
+    restart: unless-stopped
+    ports:
+      - "8848:8848"
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "false"
+    depends_on:
+      - mysql
+    volumes:
+      - nacos_logs:/home/nacos/logs
+
+volumes:
+  mysql_data:
+  nacos_logs:

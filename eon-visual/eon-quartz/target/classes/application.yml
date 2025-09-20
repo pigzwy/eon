@@ -1,0 +1,6 @@
+server:
+  port: 5007
+
+spring:
+  application:
+    name: eon-quartz

@@ -1,0 +1,12 @@
+server:
+  port: 5001
+
+spring:
+  application:
+    name: eon-monitor
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

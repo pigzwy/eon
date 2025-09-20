@@ -1,0 +1,165 @@
+# ===================================================================
+# EON 授权服务配置文件
+# ===================================================================
+# 基于Spring Security OAuth2 Authorization Server的企业级认证服务
+# 提供OAuth2.0标准协议的授权服务器功能，支持多种授权模式
+#
+# 主要功能：
+# - OAuth2授权码模式、客户端凭证模式、刷新令牌等
+# - JWT令牌生成、验证和撤销
+# - 用户认证和角色权限管理
+# - 与Nacos服务注册发现集成
+# ===================================================================
+
+# 服务端口配置
+server:
+  port: 3000  # 授权服务默认端口，避免与其他服务冲突
+
+# Spring Boot 应用配置
+spring:
+  # 应用基础信息
+  application:
+    name: eon-auth  # 服务名称，用于服务注册发现
+  # 数据源配置 - 支持MySQL和H2两种模式
+  datasource:
+    # MySQL生产环境配置（默认）
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/eon?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # JPA配置 - Hibernate数据库操作
+  jpa:
+    hibernate:
+      # 数据库表结构管理策略
+      # create-drop: 启动时创建表，关闭时删除（开发环境）
+      # update: 自动更新表结构（生产环境）
+      # none: 不自动管理表结构，由SQL脚本管理
+      ddl-auto: none
+    properties:
+      hibernate:
+        # SQL格式化，便于调试
+        format_sql: true
+    # 延迟数据源初始化，确保JPA先创建表结构
+    defer-datasource-initialization: true
+
+  # SQL脚本初始化配置
+  sql:
+    init:
+      # 初始化模式：always(总是执行), never(不执行), embedded(仅嵌入式数据库)
+#      mode: always
+      mode: never
+      # 数据库表结构脚本
+      schema-locations: classpath:sql/schema.sql
+      # 初始化数据脚本
+      data-locations: classpath:sql/data.sql
+
+  # Redis缓存配置（用于会话和令牌缓存）
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      # 连接池配置
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+
+  cloud:
+    nacos:
+      # Nacos认证信息
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:nacos}
+
+      # 服务发现配置
+      discovery:
+        server-addr: ${NACOS_HOST:127.0.0.1}:${NACOS_PORT:8848}
+
+      # 配置中心
+      config:
+        server-addr: ${spring.cloud.nacos.discovery.server-addr}
+        import-check:
+          enabled: false
+
+  # 动态配置导入（必须在 spring.config.import 下）
+  config:
+    import:
+      # 导入通用应用配置（可选）
+      - optional:nacos:application-${spring.profiles.active:dev}.yml
+      # 导入服务专用配置（可选）
+      - optional:nacos:${spring.application.name}-${spring.profiles.active:dev}.yml
+
+
+  # OAuth2 授权服务器配置
+  security:
+    oauth2:
+      authorization-server:
+        # 授权服务器issuer地址，用于JWT令牌签发
+        issuer: ${AUTH_SERVER_ISSUER_URI:http://localhost:3000}
+
+        # 端点路径配置（可选，使用默认值）
+        # endpoint:
+        #   authorization-uri: /oauth2/authorize
+        #   token-uri: /oauth2/token
+        #   jwk-set-uri: /oauth2/jwks
+
+# EON OAuth2 客户端配置
+eon:
+  oauth2:
+    client:
+      # 默认客户端配置
+      default:
+        client-id: ${OAUTH2_CLIENT_ID:eon-console}
+        client-secret: ${OAUTH2_CLIENT_SECRET:console-secret}
+        # 支持的授权类型
+        grant-types:
+          - authorization_code
+          - refresh_token
+          - client_credentials
+          - password
+        # 重定向URI
+        redirect-uris:
+          - http://127.0.0.1:8080/login/oauth2/code/eon
+          - http://localhost:9999/authorized
+        # 登出重定向URI
+        post-logout-redirect-uris:
+          - http://127.0.0.1:8080
+          - http://localhost:9999
+        # 客户端权限范围
+        scopes:
+          - openid
+          - profile
+          - read
+          - write
+        # 客户端设置
+        settings:
+          require-authorization-consent: true
+          require-proof-key: true
+
+# Spring Boot Actuator监控配置
+management:
+  # 监控端点配置
+  endpoints:
+    web:
+      exposure:
+        # 暴露的监控端点：健康检查、应用信息、指标数据
+        include: health,info,metrics
+  # 健康检查配置
+  endpoint:
+    health:
+      # 只有授权用户才能看到详细健康信息
+      show-details: when_authorized
+      # 健康检查超时时间
+      cache:
+        time-to-live: 10s
+
+# 日志配置
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.security.oauth2: DEBUG
+    org.springframework.security.authentication: DEBUG
+    com.eon.auth: DEBUG
