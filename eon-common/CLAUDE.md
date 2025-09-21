@@ -1,95 +1,32 @@
-[Root Directory](../../CLAUDE.md) > **eon-common**
+# [Root Directory](../../CLAUDE.md) > **eon-common**
 
-# EON 公共组件模块
+## EON 公共组件模块
 
-## 变更日志 (Changelog)
+### 模块职责
 
-### v1.0.0 (2025-09-16)
-- **模块初始化**: 建立公共组件库文档
-- **核心功能**: 提供统一的基础设施和工具类
-- **模块完善**: 建立完整的公共组件体系
+eon-common是EON框架的公共组件模块，提供统一的基础设施、工具类、安全组件、数据访问组件等，确保整个系统的一致性和可维护性。该模块采用分层设计，包含12个子模块，各个子模块职责明确，便于维护和扩展。
 
-## 模块职责
-
-eon-common是EON框架的公共组件模块，提供统一的基础设施、工具类、安全组件、数据访问组件等，确保整个系统的一致性和可维护性。该模块采用分层设计，各个子模块职责明确，便于维护和扩展。
-
-## 模块结构
+### 模块结构
 
 ```
 eon-common/
 ├── eon-common-bom/          # 依赖管理BOM
-│   └── pom.xml
 ├── eon-common-core/         # 核心工具类
-│   ├── src/main/java/com/eon/common/core/
-│   │   ├── Result.java      # 统一返回结果
-│   │   ├── PageResult.java  # 分页结果
-│   │   ├── ErrorCode.java   # 错误码定义
-│   │   └── exception/       # 异常类
-│   └── pom.xml
 ├── eon-common-security/     # 安全组件
-│   ├── src/main/java/com/eon/common/security/
-│   │   ├── util/           # 安全工具类
-│   │   ├── config/         # 安全配置
-│   │   └── annotation/     # 安全注解
-│   └── pom.xml
 ├── eon-common-mybatis/      # MyBatis扩展
-│   ├── src/main/java/com/eon/common/mybatis/
-│   │   ├── config/         # MyBatis配置
-│   │   ├── handler/        # 类型处理器
-│   │   └── interceptor/    # 拦截器
-│   └── pom.xml
 ├── eon-common-datasource/   # 动态数据源
-│   ├── src/main/java/com/eon/common/datasource/
-│   │   ├── config/         # 数据源配置
-│   │   ├── aop/            # 数据源AOP
-│   │   └── annotation/     # 数据源注解
-│   └── pom.xml
 ├── eon-common-feign/        # Feign扩展
-│   ├── src/main/java/com/eon/common/feign/
-│   │   ├── config/         # Feign配置
-│   │   ├── fallback/       # 降级处理
-│   │   └── interceptor/    # 拦截器
-│   └── pom.xml
 ├── eon-common-log/          # 日志组件
-│   ├── src/main/java/com/eon/common/log/
-│   │   ├── aspect/         # 日志切面
-│   │   ├── config/         # 日志配置
-│   │   └── annotation/     # 日志注解
-│   └── pom.xml
 ├── eon-common-oss/          # 文件上传
-│   ├── src/main/java/com/eon/common/oss/
-│   │   ├── config/         # OSS配置
-│   │   ├── service/        # OSS服务
-│   │   └── enums/          # OSS类型枚举
-│   └── pom.xml
 ├── eon-common-seata/        # 分布式事务
-│   ├── src/main/java/com/eon/common/seata/
-│   │   ├── config/         # Seata配置
-│   │   └── interceptor/    # 事务拦截器
-│   └── pom.xml
 ├── eon-common-websocket/    # WebSocket
-│   ├── src/main/java/com/eon/common/websocket/
-│   │   ├── config/         # WebSocket配置
-│   │   ├── handler/        # 消息处理器
-│   │   └── session/        # 会话管理
-│   └── pom.xml
 ├── eon-common-swagger/      # 接口文档
-│   ├── src/main/java/com/eon/common/swagger/
-│   │   ├── config/         # Swagger配置
-│   │   └── annotation/     # Swagger注解
-│   └── pom.xml
-├── eon-common-xss/          # XSS防护
-│   ├── src/main/java/com/eon/common/xss/
-│   │   ├── config/         # XSS配置
-│   │   ├── filter/         # XSS过滤器
-│   │   └── util/           # XSS工具类
-│   └── pom.xml
-└── pom.xml
+└── eon-common-xss/          # XSS防护
 ```
 
-## 核心组件说明
+### 核心组件说明
 
-### eon-common-bom
+#### eon-common-bom
 **功能**: 统一依赖版本管理，确保各个模块使用相同的依赖版本
 
 **主要特性**:
@@ -97,182 +34,237 @@ eon-common/
 - 避免版本冲突
 - 便于版本升级
 
-### eon-common-core
+#### eon-common-core
 **功能**: 核心工具类和基础模型
 
 **主要特性**:
-- 统一返回结果封装 (`Result<T>`)
-- 分页结果封装 (`PageResult<T>`)
-- 错误码定义 (`ErrorCode`)
+- 统一返回结果封装 (`R<T>`)
+- 分页结果封装
+- 错误码定义
 - 通用异常类
 - 日期时间工具类
 - 字符串工具类
-- JSON工具类
+- 常量定义
 
-### eon-common-security
+**关键文件**:
+- `R.java`: 统一响应结果封装
+- `ServiceNameConstants.java`: 服务名称常量
+- `CommonConstants.java`: 通用常量定义
+- `SecurityConstants.java`: 安全相关常量
+- `CacheConstants.java`: 缓存相关常量
+
+#### eon-common-security
 **功能**: 安全相关组件
 
 **主要特性**:
-- 用户上下文工具类
-- 权限验证工具类
-- 加密解密工具类
-- JWT令牌工具类
-- 安全注解 (`@PreAuthorize`, `@Secured`)
+- 用户上下文管理 (`UserContextHolder`)
+- 认证用户信息 (`AuthenticatedUser`)
+- 当前用户注解 (`@CurrentUser`)
+- 权限上下文拦截器
+- 网关认证上下文提取器
+- 认证头常量定义
 
-### eon-common-mybatis
+**关键文件**:
+- `UserContextHolder.java`: 用户上下文持有者
+- `AuthenticatedUser.java`: 认证用户信息
+- `CurrentUser.java`: 当前用户注解
+- `UserPermissionsInterceptor.java`: 用户权限拦截器
+- `GatewayAuthContextExtractor.java`: 网关认证上下文提取器
+
+#### eon-common-mybatis
 **功能**: MyBatis增强组件
 
 **主要特性**:
-- 通用Mapper接口
-- 分页插件配置
-- 逻辑删除支持
+- MyBatis Plus集成
+- 通用Mapper配置
+- 分页插件支持
+- 数据权限控制
 - 自动填充配置
-- 数据权限拦截器
 
-### eon-common-datasource
+#### eon-common-datasource
 **功能**: 动态数据源支持
 
 **主要特性**:
 - 多数据源配置
-- 数据源切换注解 (`@DataSource`)
-- 读写分离支持
+- 数据源切换注解 (`@UseDataSource`)
+- 动态路由数据源
 - 数据源健康检查
+- 读写分离支持
 
-### eon-common-feign
+**关键文件**:
+- `DynamicDataSourceAutoConfiguration.java`: 动态数据源自动配置
+- `DynamicRoutingDataSource.java`: 动态路由数据源
+- `UseDataSource.java`: 数据源使用注解
+- `DynamicDataSourceAspect.java`: 数据源切面
+
+#### eon-common-feign
 **功能**: Feign客户端增强
 
 **主要特性**:
+- 头部传播拦截器
 - 统一Feign配置
 - 服务间调用日志
 - 熔断降级处理
 - 负载均衡配置
 
-## 关键代码示例
+**关键文件**:
+- `HeaderPropagationRequestInterceptor.java`: 头部传播请求拦截器
+- `EonFeignProperties.java`: Feign配置属性
+- `EonFeignAutoConfiguration.java`: Feign自动配置
 
-### 统一返回结果
+#### eon-common-log
+**功能**: 日志组件
+
+**主要特性**:
+- 链路追踪ID生成
+- 请求日志记录
+- 日志切面支持
+- 结构化日志
+- 日志配置管理
+
+**关键文件**:
+- `TraceIdFilter.java`: 链路追踪ID过滤器
+- `TraceIdProperties.java`: 追踪ID配置属性
+- `LoggingAutoConfiguration.java`: 日志自动配置
+
+#### eon-common-oss
+**功能**: 文件上传组件
+
+**主要特性**:
+- 多OSS服务支持
+- 统一文件上传接口
+- 文件存储管理
+- 文件访问控制
+
+#### eon-common-seata
+**功能**: 分布式事务组件
+
+**主要特性**:
+- Seata集成
+- 分布式事务管理
+- 事务拦截器
+- 全局事务配置
+
+#### eon-common-websocket
+**功能**: WebSocket组件
+
+**主要特性**:
+- WebSocket配置
+- 消息处理器
+- 会话管理
+- 广播支持
+
+#### eon-common-swagger
+**功能**: 接口文档组件
+
+**主要特性**:
+- Swagger自动配置
+- API文档生成
+- 接口测试支持
+- 文档权限控制
+
+**关键文件**:
+- `SwaggerAutoConfiguration.java`: Swagger自动配置
+- `SwaggerProperties.java`: Swagger配置属性
+
+#### eon-common-xss
+**功能**: XSS防护组件
+
+**主要特性**:
+- XSS过滤器
+- 输入验证
+- 输出编码
+- 安全防护规则
+
+### 关键代码示例
+
+#### 统一返回结果 (R.java)
 ```java
-// eon-common-core/src/main/java/com/eon/common/core/Result.java
-public class Result<T> {
+@Data
+@Accessors(chain = true)
+@FieldNameConstants
+public class R<T> implements Serializable {
+    
+    @Getter
+    @Setter
     private int code;
-    private String message;
+    
+    @Getter
+    @Setter
+    private String msg;
+    
+    @Getter
+    @Setter
     private T data;
-
-    public static <T> Result<T> ok(T data) {
-        Result<T> r = new Result<>();
-        r.code = 0;
-        r.message = "ok";
-        r.data = data;
-        return r;
+    
+    public static <T> R<T> ok() {
+        return restResult(null, CommonConstants.SUCCESS, null);
     }
-
-    public static <T> Result<T> fail(String msg) {
-        Result<T> r = new Result<>();
-        r.code = -1;
-        r.message = msg;
-        return r;
+    
+    public static <T> R<T> ok(T data) {
+        return restResult(data, CommonConstants.SUCCESS, null);
     }
-
-    // getters and setters
+    
+    public static <T> R<T> failed() {
+        return restResult(null, CommonConstants.FAIL, null);
+    }
+    
+    public static <T> R<T> failed(String msg) {
+        return restResult(null, CommonConstants.FAIL, msg);
+    }
+    
+    private static <T> R<T> restResult(T data, int code, String msg) {
+        R<T> apiResult = new R<>();
+        apiResult.setCode(code);
+        apiResult.setData(data);
+        apiResult.setMsg(msg);
+        return apiResult;
+    }
 }
 ```
 
-### 分页结果
+#### 用户上下文管理
 ```java
-public class PageResult<T> {
-    private List<T> records;
-    private long total;
-    private long size;
-    private long current;
-    private long pages;
-
-    public static <T> PageResult<T> of(List<T> records, long total, long size, long current) {
-        PageResult<T> result = new PageResult<>();
-        result.records = records;
-        result.total = total;
-        result.size = size;
-        result.current = current;
-        result.pages = (total + size - 1) / size;
-        return result;
+public class UserContextHolder {
+    private static final ThreadLocal<AuthenticatedUser> CONTEXT = new ThreadLocal<>();
+    
+    public static void setContext(AuthenticatedUser user) {
+        CONTEXT.set(user);
     }
-
-    // getters and setters
+    
+    public static AuthenticatedUser getContext() {
+        return CONTEXT.get();
+    }
+    
+    public static void clear() {
+        CONTEXT.remove();
+    }
 }
 ```
 
-### 错误码定义
+#### 当前用户注解
 ```java
-public enum ErrorCode {
-    SUCCESS(0, "操作成功"),
-    SYSTEM_ERROR(-1, "系统错误"),
-    PARAM_ERROR(1001, "参数错误"),
-    AUTH_ERROR(1002, "认证失败"),
-    PERMISSION_ERROR(1003, "权限不足"),
-    DATA_NOT_FOUND(2001, "数据不存在"),
-    DATA_DUPLICATE(2002, "数据已存在");
-
-    private final int code;
-    private final String message;
-
-    ErrorCode(int code, String message) {
-        this.code = code;
-        this.message = message;
-    }
-
-    // getters
+@Target(ElementType.PARAMETER)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+public @interface CurrentUser {
 }
 ```
 
-### 通用异常类
+#### 动态数据源注解
 ```java
-public class BusinessException extends RuntimeException {
-    private int code;
-    private String message;
-
-    public BusinessException(int code, String message) {
-        super(message);
-        this.code = code;
-        this.message = message;
-    }
-
-    public BusinessException(ErrorCode errorCode) {
-        super(errorCode.getMessage());
-        this.code = errorCode.getCode();
-        this.message = errorCode.getMessage();
-    }
-
-    // getters
+@Target({ElementType.METHOD, ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+public @interface UseDataSource {
+    String value() default "master";
 }
 ```
 
-### 日期时间工具类
-```java
-public class DateUtils {
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+### 依赖配置
 
-    public static String formatDate(LocalDate date) {
-        return date.format(DATE_FORMATTER);
-    }
-
-    public static String formatDateTime(LocalDateTime dateTime) {
-        return dateTime.format(DATETIME_FORMATTER);
-    }
-
-    public static LocalDate parseDate(String dateStr) {
-        return LocalDate.parse(dateStr, DATE_FORMATTER);
-    }
-
-    public static LocalDateTime parseDateTime(String dateTimeStr) {
-        return LocalDateTime.parse(dateTimeStr, DATETIME_FORMATTER);
-    }
-}
-```
-
-## 依赖配置
-
-### 父级POM配置
+#### 父级POM配置
 ```xml
-<!-- eon-common/pom.xml -->
 <project xmlns="http://maven.apache.org/POM/4.0.0">
     <modelVersion>4.0.0</modelVersion>
     <parent>
@@ -303,96 +295,10 @@ public class DateUtils {
 </project>
 ```
 
-### BOM配置
-```xml
-<!-- eon-common-bom/pom.xml -->
-<project xmlns="http://maven.apache.org/POM/4.0.0">
-    <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>com.eon</groupId>
-        <artifactId>eon-common</artifactId>
-        <version>0.0.1-SNAPSHOT</version>
-    </parent>
-    
-    <artifactId>eon-common-bom</artifactId>
-    <packaging>pom</packaging>
-    <name>eon-common-bom</name>
-    <description>EON公共组件依赖管理</description>
-    
-    <dependencyManagement>
-        <dependencies>
-            <!-- 内部依赖 -->
-            <dependency>
-                <groupId>com.eon</groupId>
-                <artifactId>eon-common-core</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.eon</groupId>
-                <artifactId>eon-common-security</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <!-- 其他内部依赖 -->
-            
-            <!-- 第三方依赖 -->
-            <dependency>
-                <groupId>org.apache.commons</groupId>
-                <artifactId>commons-lang3</artifactId>
-                <version>3.12.0</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.commons</groupId>
-                <artifactId>commons-collections4</artifactId>
-                <version>4.4</version>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-</project>
-```
+### 使用示例
 
-### 核心模块依赖
+#### 在业务模块中使用公共组件
 ```xml
-<!-- eon-common-core/pom.xml -->
-<project xmlns="http://maven.apache.org/POM/4.0.0">
-    <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>com.eon</groupId>
-        <artifactId>eon-common</artifactId>
-        <version>0.0.1-SNAPSHOT</version>
-    </parent>
-    
-    <artifactId>eon-common-core</artifactId>
-    <name>eon-common-core</name>
-    <description>EON核心工具类</description>
-    
-    <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-collections4</artifactId>
-        </dependency>
-    </dependencies>
-</project>
-```
-
-## 使用示例
-
-### 在业务模块中使用公共组件
-```xml
-<!-- 在业务模块的pom.xml中引入依赖 -->
 <dependencies>
     <dependency>
         <groupId>com.eon</groupId>
@@ -404,156 +310,166 @@ public class DateUtils {
     </dependency>
     <dependency>
         <groupId>com.eon</groupId>
-        <artifactId>eon-common-mybatis</artifactId>
+        <artifactId>eon-common-datasource</artifactId>
     </dependency>
 </dependencies>
 ```
 
-### 使用统一返回结果
+#### 使用统一返回结果
 ```java
 @RestController
 public class UserController {
-    @Autowired
-    private UserService userService;
     
     @GetMapping("/users/{id}")
-    public Result<UserDTO> getUser(@PathVariable Long id) {
+    public R<UserDTO> getUser(@PathVariable Long id) {
         UserDTO user = userService.getById(id);
-        return Result.ok(user);
+        return R.ok(user);
     }
     
     @PostMapping("/users")
-    public Result<UserDTO> createUser(@RequestBody UserCreateDTO dto) {
+    public R<UserDTO> createUser(@RequestBody UserCreateDTO dto) {
         UserDTO user = userService.create(dto);
-        return Result.ok(user);
+        return R.ok(user);
     }
 }
 ```
 
-### 使用安全注解
+#### 使用当前用户注解
 ```java
 @RestController
-@RequestMapping("/api/admin")
-public class AdminController {
+@RequestMapping("/api/users")
+public class UserController {
     
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/users")
-    public Result<List<UserDTO>> listUsers() {
-        List<UserDTO> users = userService.listUsers();
-        return Result.ok(users);
-    }
-    
-    @PreAuthorize("hasPermission('user', 'create')")
-    @PostMapping("/users")
-    public Result<UserDTO> createUser(@RequestBody UserCreateDTO dto) {
-        UserDTO user = userService.create(dto);
-        return Result.ok(user);
+    @GetMapping("/me")
+    public R<UserMeResponse> me(@CurrentUser AuthenticatedUser currentUser) {
+        UserMeResponse response = userService.getUserMe(currentUser.userId());
+        return R.ok(response);
     }
 }
 ```
 
-## 测试和质量
-
-### 单元测试
+#### 使用动态数据源
 ```java
-@SpringBootTest
-public class ResultTest {
+@Service
+public class UserService {
     
-    @Test
-    public void testOkResult() {
-        Result<String> result = Result.ok("success");
-        assertEquals(0, result.getCode());
-        assertEquals("ok", result.getMessage());
-        assertEquals("success", result.getData());
+    @UseDataSource("slave")
+    public UserDTO getUserFromSlave(Long id) {
+        // 从从库查询用户
+        return userMapper.selectById(id);
     }
     
-    @Test
-    public void testFailResult() {
-        Result<String> result = Result.fail("error");
-        assertEquals(-1, result.getCode());
-        assertEquals("error", result.getMessage());
-        assertNull(result.getData());
+    @UseDataSource("master")
+    public void updateUser(UserDTO user) {
+        // 更新主库用户
+        userMapper.updateById(user);
     }
 }
 ```
 
-### 集成测试
-```java
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@AutoConfigureMockMvc
-public class CommonIntegrationTest {
-    
-    @Autowired
-    private MockMvc mockMvc;
-    
-    @Test
-    public void testCommonComponent() throws Exception {
-        mockMvc.perform(get("/api/test"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0));
-    }
-}
+### 测试和质量
+
+#### 测试文件覆盖
+- `GatewayAuthContextExtractorTest.java`: 网关认证上下文提取器测试
+- `DynamicDataSourceAspectTest.java`: 动态数据源切面测试
+- `HeaderPropagationRequestInterceptorTest.java`: 头部传播拦截器测试
+- `TraceIdFilterTest.java`: 链路追踪过滤器测试
+- `SwaggerAutoConfigurationTest.java`: Swagger自动配置测试
+
+#### 测试特点
+- 单元测试覆盖核心功能
+- 集成测试验证组件间协作
+- 自动化测试确保代码质量
+- 持续集成支持
+
+### 重要文件列表
+
+#### 核心文件
+```
+eon-common/
+├── pom.xml                                    # 父级POM
+├── eon-common-bom/
+│   └── pom.xml                                # 依赖管理BOM
+├── eon-common-core/
+│   ├── src/main/java/com/eon/common/core/
+│   │   ├── R.java                             # 统一返回结果
+│   │   ├── constant/
+│   │   │   ├── ServiceNameConstants.java      # 服务名称常量
+│   │   │   ├── CommonConstants.java           # 通用常量
+│   │   │   ├── SecurityConstants.java         # 安全常量
+│   │   │   └── CacheConstants.java            # 缓存常量
+│   │   └── constant/enums/                    # 枚举定义
+│   └── pom.xml
+├── eon-common-security/
+│   ├── src/main/java/com/eon/common/security/
+│   │   ├── context/
+│   │   │   ├── UserContextHolder.java        # 用户上下文持有者
+│   │   │   ├── AuthenticatedUser.java        # 认证用户信息
+│   │   │   ├── CurrentUser.java               # 当前用户注解
+│   │   │   ├── CurrentUserArgumentResolver.java # 参数解析器
+│   │   │   ├── GatewayAuthContextExtractor.java # 网关认证上下文提取器
+│   │   │   └── AuthContextAutoConfiguration.java # 认证上下文自动配置
+│   │   ├── constant/
+│   │   │   └── AuthHeaderConstants.java       # 认证头常量
+│   │   └── context/UserPermissionsInterceptor.java # 用户权限拦截器
+│   └── pom.xml
+├── eon-common-datasource/
+│   ├── src/main/java/com/eon/common/datasource/
+│   │   ├── config/DynamicDataSourceAutoConfiguration.java # 动态数据源配置
+│   │   ├── annotation/UseDataSource.java      # 数据源使用注解
+│   │   ├── support/DynamicRoutingDataSource.java # 动态路由数据源
+│   │   ├── support/DynamicDataSourceAspect.java # 数据源切面
+│   │   └── properties/DynamicDataSourceProperties.java # 数据源配置属性
+│   └── pom.xml
+├── eon-common-feign/
+│   ├── src/main/java/com/eon/common/feign/
+│   │   ├── support/HeaderPropagationRequestInterceptor.java # 头部传播拦截器
+│   │   ├── properties/EonFeignProperties.java # Feign配置属性
+│   │   └── config/EonFeignAutoConfiguration.java # Feign自动配置
+│   └── pom.xml
+├── eon-common-log/
+│   ├── src/main/java/com/eon/common/log/
+│   │   ├── filter/TraceIdFilter.java          # 链路追踪过滤器
+│   │   ├── properties/TraceIdProperties.java  # 追踪ID配置属性
+│   │   └── config/LoggingAutoConfiguration.java # 日志自动配置
+│   └── pom.xml
+├── eon-common-swagger/
+│   ├── src/main/java/com/eon/common/swagger/
+│   │   ├── config/SwaggerAutoConfiguration.java # Swagger自动配置
+│   │   └── properties/SwaggerProperties.java # Swagger配置属性
+│   └── pom.xml
+└── eon-common-xss/
+    ├── src/main/java/com/eon/common/xss/     # XSS防护组件
+    └── pom.xml
 ```
 
-## 常见问题
+#### 测试文件
+```
+src/test/java/com/eon/common/
+├── security/context/GatewayAuthContextExtractorTest.java
+├── datasource/support/DynamicDataSourceAspectTest.java
+├── feign/support/HeaderPropagationRequestInterceptorTest.java
+├── log/filter/TraceIdFilterTest.java
+└── swagger/config/SwaggerAutoConfigurationTest.java
+```
 
-### Q: 如何添加新的公共组件？
-A: 在eon-common下创建新的子模块，实现相应的功能，并在父级POM中添加模块引用。
+### 变更日志 (Changelog)
 
-### Q: 如何处理版本冲突？
-A: 使用eon-common-bom统一管理依赖版本，确保所有模块使用相同版本。
+### v2.0.0 (2025-09-21)
+- **AI上下文深度初始化**: 完成公共组件模块的深度分析和文档更新
+- **组件架构完善**: 详细描述12个子模块的功能和关键文件
+- **核心代码示例**: 提供关键组件的代码示例和使用说明
+- **集成测试增强**: 完善各组件的测试覆盖和质量保证
+- **依赖关系明确**: 清晰定义各组件间的依赖关系和使用方式
 
-### Q: 如何扩展通用功能？
-A: 在相应的子模块中添加新的工具类、配置类或注解，遵循现有代码风格。
-
-### Q: 如何避免循环依赖？
-A: 严格按照模块职责划分，确保依赖关系是单向的，避免相互依赖。
-
-## 相关文件列表
-
-### 核心文件
-- `eon-common/pom.xml` - 公共组件父级POM
-- `eon-common/eon-common-bom/pom.xml` - 依赖管理BOM
-- `eon-common/eon-common-core/src/main/java/com/eon/common/core/Result.java` - 统一返回结果
-- `eon-common/eon-common-core/src/main/java/com/eon/common/core/PageResult.java` - 分页结果
-- `eon-common/eon-common-core/src/main/java/com/eon/common/core/ErrorCode.java` - 错误码定义
-
-### 配置文件
-- `eon-common/eon-common-core/src/main/resources/META-INF/spring.factories` - Spring自动配置
-- `eon-common/eon-common-core/src/main/resources/application.yml` - 默认配置
-
-### 测试文件
-- `eon-common/eon-common-core/src/test/java/com/eon/common/core/ResultTest.java` - 返回结果测试
-- `eon-common/eon-common-core/src/test/java/com/eon/common/core/ErrorCodeTest.java` - 错误码测试
-
-## 扩展指南
-
-### 添加新的工具类
-1. 在对应的功能模块中创建工具类
-2. 编写相应的单元测试
-3. 更新文档说明
-4. 发布版本更新
-
-### 集成第三方库
-1. 在BOM中添加依赖版本管理
-2. 在对应模块中添加依赖
-3. 封装第三方库的API
-4. 提供统一的接口
-
-### 性能优化
-1. 优化工具类算法
-2. 添加缓存机制
-3. 减少内存分配
-4. 优化线程安全
-
-### 文档完善
-1. 添加API文档
-2. 编写使用示例
-3. 完善错误处理
-4. 更新版本记录
+### v1.0.0 (2025-09-16)
+- **模块初始化**: 建立公共组件库文档
+- **核心功能**: 提供统一的基础设施和工具类
+- **模块完善**: 建立完整的公共组件体系
 
 ---
 
-**更新时间**: 2025-09-16 10:40:53  
-**文档版本**: v1.0.0  
-**维护状态**: 持续更新中
+**模块路径**: `/home/pig/github/eon-github/eon-common`  
+**维护状态**: 持续开发中  
+**技术栈**: Spring Boot + Spring Cloud + 各种中间件客户端  
+**主要功能**: 统一基础设施、工具类、安全组件、数据访问组件等12个子模块
