@@ -18,7 +18,7 @@
    - 目标：引入统一的单测运行与覆盖率检测流程。  
    - 范围：配置 JaCoCo、补充关键安全链路的测试样例，初始化 GitHub Actions 流程。  
    - 交付基准：CI 能执行 `mvn verify` 并生成覆盖率报告，核心模块新增示例测试。  
-   - 进展：根 POM 已启用 `jacoco-maven-plugin` 默认绑定，CI `ci.yml` 固定上传报告，新建 `docs/TEST_COVERAGE_BASELINE.md` 说明执行规范并在 `eon-common-log` 加入 `TraceIdFilterTest`；后续需补齐安全链路用例并评估覆盖率阈值检查。
+   - 进展：根 POM 已启用 `jacoco-maven-plugin` 默认绑定，新增 `docs/TEST_COVERAGE_BASELINE.md` 说明执行规范，在 `eon-common-log`/`eon-common-feign`/`eon-common-security` 补充示例测试；仍需在 CI 环境完成依赖缓存与引入覆盖率阈值检查。
 
 4. **完善本地与环境配置脚本**  
    - 目标：提升开发者一键启动体验。  
