@@ -58,16 +58,16 @@ spring:
             - Path=/.well-known/**,/oauth2/**,/userinfo
           filters:
             - StripPrefix=0
-    sentinel:
-      enabled: ${gateway.sentinel.enabled:false}
-      transport:
-        dashboard: ${gateway.sentinel.dashboard:}
-        port: ${gateway.sentinel.api-port:8719}
-      scg:
-        fallback:
-          mode: response
-          response-status: 429
-          response-body: '{"code":429,"message":"Sentinel block"}'
+#    sentinel:
+#      enabled: ${gateway.sentinel.enabled:false}
+#      transport:
+#        dashboard: ${gateway.sentinel.dashboard:}
+#        port: ${gateway.sentinel.api-port:8719}
+#      scg:
+#        fallback:
+#          mode: response
+#          response-status: 429
+#          response-body: '{"code":429,"message":"Sentinel block"}'
 
   data:
     redis:
@@ -106,14 +106,14 @@ gateway:
   cors:
     # 生产环境请在配置中心覆盖，多个用逗号分隔
     allowed-origins: http://localhost:5173
-  sentinel:
-    enabled: false
-    dashboard: ${SENTINEL_DASHBOARD:}
-    api-port: ${SENTINEL_API_PORT:8719}
-    block-response:
-      status: 429
-      body: '{"code":429,"message":"请求过于频繁，请稍后再试"}'
-    flow-rules:
-      - resource: user-api
-        count: 20
-        interval-sec: 1
+#  sentinel:
+#    enabled: false
+#    dashboard: ${SENTINEL_DASHBOARD:}
+#    api-port: ${SENTINEL_API_PORT:8719}
+#    block-response:
+#      status: 429
+#      body: '{"code":429,"message":"请求过于频繁，请稍后再试"}'
+#    flow-rules:
+#      - resource: user-api
+#        count: 20
+#        interval-sec: 1
