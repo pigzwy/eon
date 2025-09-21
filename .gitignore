@@ -1,0 +1,34 @@
+# =============================
+# 通用 Git 忽略规则（Java/Maven/IntelliJ）
+# 说明：优先满足本项目诉求，阻止 .idea 与所有 target/ 被提交
+# =============================
+
+# IDE / Editor
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.fleet/
+
+# Build outputs (Maven / multi-module)
+target/
+**/target/
+
+# Logs
+logs/
+*.log
+*.out
+*.pid
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Java crash logs
+hs_err_pid*
+replay_pid*
+
+# Docker/Env (如有需要可取消注释)
+# .env
+
