@@ -127,6 +127,11 @@ curl "http://localhost:3001/api/demo/feign/echo?message=hello" \
 
 通过该示例可以观察 `eon-common-feign` 默认请求头透传、日志级别与超时配置，如需接入真实服务，只需调整 `eon.demo.echo-url` 或在环境变量中覆盖。
 
+## 可观察性
+- Actuator 端点已暴露 `health`、`info`、`metrics`、`prometheus`，可通过 `http://localhost:3001/actuator/*` 验证。
+- 链路追踪默认上报至 `management.zipkin.tracing.endpoint`，结合 `infra/local` 中的 Zipkin 可完成端到端调试。
+- Prometheus 指标示例：`curl http://localhost:3001/actuator/prometheus | head`。
+
 ## 快速启动
 
 ```bash

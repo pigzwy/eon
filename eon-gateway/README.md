@@ -7,6 +7,7 @@
 - **认证透传**：校验来自 `eon-auth` 的 JWT，验证通过后生成 `X-User-*`、`X-Roles`、`X-Policy-Version` 等头给后端；失败时返回 401/403。
 - **动态路由**：默认以配置文件静态路由示例，推荐在 Nacos `gateway-routes` 配置中维护；支持基于 metadata 的角色校验。
 - **弹性治理**：整合 Resilience4j 断路器、重试、请求限流（RedisRateLimiter），保护后端服务稳定。
+- **可选 Sentinel**：通过 `gateway.sentinel.enabled` 控制，支持热点限流、熔断与动态规则治理。
 - **链路追踪**：预留 TraceId/SpanId 填充点，可对接 SkyWalking、Zipkin 或 Sleuth。
 
 ## 2. 运行参数
@@ -32,6 +33,9 @@ java -jar target/eon-gateway-*.jar --spring.profiles.active=dev
 | `Retry` | 针对 GET 请求的 502/503 自动重试 |
 | `CircuitBreaker` | 断路器 + fallback，默认兜底 `/__fallback/{service}` |
 | `RequestRateLimiter` | 基于 Redis 的令牌桶限流，使用 `userKeyResolver` |
+| `SentinelGatewayFilter`* | 当 `gateway.sentinel.enabled=true` 时生效，提供热点限流/熔断能力 |
+
+> *需要运行 Sentinel Dashboard 或通过配置中心下发规则。
 
 ## 5. 与其他模块的协作
 1. **eon-auth**：`gateway.security.jwksUri`、`issuer` 指向认证服务；若启用 mTLS，请配置证书到 `WebClient`。

@@ -147,8 +147,20 @@ management:
   endpoints:
     web:
       exposure:
-        # 暴露的监控端点：健康检查、应用信息、指标数据
-        include: health,info,metrics
+        # 暴露的监控端点：健康检查、应用信息、指标、Prometheus
+        include: health,info,metrics,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: 0.1
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
   # 健康检查配置
   endpoint:
     health:

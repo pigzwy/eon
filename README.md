@@ -38,17 +38,20 @@ eon
 
 1) 构建：`mvn -q -DskipTests package`
 
-2) 启动注册中心：`docker compose -f eon-register/docker-compose.yml up -d`
+2) 启动依赖（推荐）：`docker compose -f infra/local/docker-compose.yml up -d`
+   - 详情见 `infra/local/README.md`，默认提供 MySQL、Redis、Nacos、Zipkin。
 
-3) 启动微服务（示例）
+3) 启动注册中心（若需单独部署）：`docker compose -f eon-register/docker-compose.yml up -d`
+
+4) 启动微服务（示例）
 - `java -jar eon-gateway/target/*.jar`
 - `java -jar eon-auth/target/*.jar`
 - `java -jar eon-upms/eon-upms-biz/target/*.jar`
 
-4) 启动单体（与网关端口冲突，二选一）：
+5) 启动单体（与网关端口冲突，二选一）：
 - `java -jar eon-boot/target/*.jar`
 
-5) 访问与验证
+6) 访问与验证
 - 网关发现路由：`http://localhost:9999/eon-upms-biz/actuator/health`
 - UPMS 业务：`http://localhost:4000/actuator/health`
 
