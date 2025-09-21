@@ -54,6 +54,11 @@
         </dependency>
         <dependency>
             <groupId>com.eon</groupId>
+            <artifactId>eon-common-datasource</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.eon</groupId>
             <artifactId>eon-common-security</artifactId>
             <version>${project.version}</version>
         </dependency>
