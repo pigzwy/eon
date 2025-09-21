@@ -24,9 +24,16 @@ eon-user/
 ├── config/
 │   └── UserServiceConfiguration.java   # 密码器等公共 Bean
 ├── controller/
+│   ├── FeignDemoController.java        # Feign 客户端示例接口
 │   ├── HealthController.java           # 健康检查
 │   ├── RoleController.java             # 角色与权限编排接口
-│   └── UserController.java             # 用户 / 自身信息接口
+│   ├── UserController.java             # 用户 / 自身信息接口
+│   └── mock/
+│       └── MockEchoController.java     # Feign 示例用本地回声接口
+├── remote/
+│   └── feign/
+│       ├── DemoEchoClient.java
+│       └── dto/EchoPayload.java
 ├── dto/                                # 请求/响应模型
 │   ├── CreateUserRequest.java
 │   ├── UpdateUserRequest.java
@@ -88,6 +95,37 @@ eon-user/
 - 需要在 Service 层获取用户信息时，可通过 `UserContextHolder.get()` 读取同一 `AuthenticatedUser` 快照，线程完成后会自动清理。
 - 若旧代码仍依赖 `@RequestHeader("X-User-Roles")` 等写法，优先改为 `@CurrentUser`，确有特殊需求时请统一使用 `AuthHeaderConstants` 中的常量，避免硬编码头名。
 - 新增角色/权限字段时，应同时更新：网关透传、`AuthHeaderConstants`、`AuthenticatedUser` 及相关单元测试。
+
+## OpenFeign 示例
+
+为验证 `eon-common-feign` 的统一配置，用户服务新增了一个演示链路：
+
+1. `DemoEchoClient`：基于 `@FeignClient` 定义，默认指向本服务的 `/internal/mock/echo`，也可通过 `eon.demo.echo-url` 指向真实下游。
+2. `FeignDemoController`：对外暴露 `GET /api/demo/feign/echo`，调用 Feign 客户端并返回远端响应及透传的头信息。
+3. `MockEchoController`：本地模拟的回声服务，受 `eon.demo.mock-enabled` 控制，默认开启，便于本地演示。
+
+示例请求：
+
+```bash
+curl "http://localhost:3001/api/demo/feign/echo?message=hello" \
+  -H "X-User-Id: 1" \
+  -H "X-Trace-Id: demo-trace"
+```
+
+示例响应（部分）：
+
+```json
+{
+  "requestMessage": "hello",
+  "remoteValue": "hello",
+  "remoteHeaders": {
+    "X-User-Id": "1",
+    "X-Trace-Id": "demo-trace"
+  }
+}
+```
+
+通过该示例可以观察 `eon-common-feign` 默认请求头透传、日志级别与超时配置，如需接入真实服务，只需调整 `eon.demo.echo-url` 或在环境变量中覆盖。
 
 ## 快速启动
 

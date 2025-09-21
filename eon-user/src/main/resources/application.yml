@@ -50,4 +50,9 @@ eon:
         username: ${USER_MYSQL_USERNAME:${MYSQL_USERNAME:root}}
         password: ${USER_MYSQL_PASSWORD:${MYSQL_PASSWORD:root}}
         driver-class-name: ${USER_MYSQL_DRIVER:${MYSQL_DRIVER:com.mysql.cj.jdbc.Driver}}
+  feign:
+    log-level: BASIC
+  demo:
+    echo-url: http://localhost:${server.port}
+    mock-enabled: true
 
