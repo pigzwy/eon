@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 @FeignClient(
         name = "eon-user-echo",
         contextId = "demoEchoClient",
-        url = "${eon.demo.echo-url:http://localhost:4000}",
+        url = "${eon.demo.echo-url:http://localhost:3001}",
         path = "/internal/mock"
 )
 public interface DemoEchoClient {
