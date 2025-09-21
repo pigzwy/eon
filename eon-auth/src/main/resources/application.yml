@@ -20,14 +20,7 @@ spring:
   # 应用基础信息
   application:
     name: eon-auth  # 服务名称，用于服务注册发现
-  # 数据源配置 - 支持MySQL和H2两种模式
-  datasource:
-    # MySQL生产环境配置（默认）
-    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/eon?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true}
-    username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD:root}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-
+  # 数据源配置由 eon-common-datasource 统一管理
   # JPA配置 - Hibernate数据库操作
   jpa:
     hibernate:
@@ -108,6 +101,15 @@ spring:
 
 # EON OAuth2 客户端配置
 eon:
+  datasource:
+    enabled: true
+    primary: master
+    targets:
+      master:
+        url: jdbc:mysql://${AUTH_MYSQL_HOST:${MYSQL_HOST:localhost}}:${AUTH_MYSQL_PORT:${MYSQL_PORT:3306}}/${AUTH_MYSQL_DATABASE:${MYSQL_DATABASE:eon}}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true
+        username: ${AUTH_MYSQL_USERNAME:${MYSQL_USERNAME:root}}
+        password: ${AUTH_MYSQL_PASSWORD:${MYSQL_PASSWORD:root}}
+        driver-class-name: ${AUTH_MYSQL_DRIVER:${MYSQL_DRIVER:com.mysql.cj.jdbc.Driver}}
   oauth2:
     client:
       # 默认客户端配置

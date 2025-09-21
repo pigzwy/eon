@@ -5,12 +5,6 @@ spring:
   application:
     name: eon-user
 
-  datasource:
-    url: jdbc:mysql://localhost:3306/eon?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true
-    username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD:root}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    
   jpa:
     hibernate:
       ddl-auto: update
@@ -23,7 +17,8 @@ spring:
     
   sql:
     init:
-      mode: always
+      #      mode: always
+      mode: never
       schema-locations: classpath:sql/schema.sql
       data-locations: classpath:sql/data.sql
 
@@ -44,3 +39,15 @@ spring:
 logging:
   level:
     com.eon.user: DEBUG
+
+eon:
+  datasource:
+    enabled: true
+    primary: master
+    targets:
+      master:
+        url: jdbc:mysql://${USER_MYSQL_HOST:${MYSQL_HOST:localhost}}:${USER_MYSQL_PORT:${MYSQL_PORT:3306}}/${USER_MYSQL_DATABASE:${MYSQL_DATABASE:eon}}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true
+        username: ${USER_MYSQL_USERNAME:${MYSQL_USERNAME:root}}
+        password: ${USER_MYSQL_PASSWORD:${MYSQL_PASSWORD:root}}
+        driver-class-name: ${USER_MYSQL_DRIVER:${MYSQL_DRIVER:com.mysql.cj.jdbc.Driver}}
+
