@@ -1,0 +1,103 @@
+services:
+  eon-auth:
+    image: eon-auth:local
+    build:
+      context: ..
+      dockerfile: eon-auth/Dockerfile
+      args: {}
+    container_name: eon-auth
+    restart: unless-stopped
+    environment:
+      # 数据源与缓存
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USERNAME: root
+      MYSQL_PASSWORD: root
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # 服务注册中心
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      NACOS_USERNAME: nacos
+      NACOS_PASSWORD: nacos
+      # 授权服务器元数据
+      AUTH_SERVER_ISSUER_URI: http://eon-auth:3000
+      AUTH_MYSQL_DATABASE: eon
+    networks:
+      - eon_infra
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  eon-user:
+    image: eon-user:local
+    build:
+      context: ..
+      dockerfile: eon-user/Dockerfile
+    container_name: eon-user
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USERNAME: root
+      MYSQL_PASSWORD: root
+      USER_MYSQL_DATABASE: eon
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      NACOS_USERNAME: nacos
+      NACOS_PASSWORD: nacos
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+    depends_on:
+      eon-auth:
+        condition: service_healthy
+    networks:
+      - eon_infra
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3001/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  eon-gateway:
+    image: eon-gateway:local
+    build:
+      context: ..
+      dockerfile: eon-gateway/Dockerfile
+    container_name: eon-gateway
+    restart: unless-stopped
+    environment:
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      NACOS_USERNAME: nacos
+      NACOS_PASSWORD: nacos
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      AUTH_SERVER_ISSUER_URI: http://eon-auth:3000
+      AUTH_SERVER_JWKS_URI: http://eon-auth:3000/oauth2/jwks
+    depends_on:
+      eon-auth:
+        condition: service_healthy
+      eon-user:
+        condition: service_healthy
+    networks:
+      - eon_infra
+    ports:
+      - "3100:3100"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3100/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+networks:
+  eon_infra:
+    name: eon_infra_net
+    external: true

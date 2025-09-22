@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   mysql:
     image: mysql:8.0
@@ -19,8 +17,10 @@ services:
       retries: 20
     volumes:
       - mysql_data:/var/lib/mysql
+      # 初始化 Nacos 所需的表结构，启动容器时自动导入
+      - ./nacos_config.sql:/docker-entrypoint-initdb.d/nacos_config.sql:ro
     networks:
-      - nacos_net
+      - eon_infra
 
   nacos:
     image: nacos/nacos-server:v2.5.1
@@ -46,7 +46,7 @@ services:
       - "9848:9848"
       - "9849:9849"
     networks:
-      - nacos_net
+      - eon_infra
 
   # 独立的 Redis 服务
   redis:
@@ -63,7 +63,7 @@ services:
       timeout: 3s
       retries: 20
     networks:
-      - nacos_net
+      - eon_infra
 
 volumes:
   mysql_data:
@@ -72,5 +72,6 @@ volumes:
     name: nacos_redis_data
 
 networks:
-  nacos_net:
+  eon_infra:
+    name: eon_infra_net
     driver: bridge

@@ -53,6 +53,7 @@ public class  DefaultSecurityConfig {
                                 .requestMatchers("/assets/**", "/login").permitAll()
                                 // 授权服务器公开端点与认证接口放行
                                 .requestMatchers("/.well-known/**", "/oauth2/jwks", "/oauth2/token", "/api/auth/**").permitAll()
+                                .requestMatchers("/actuator/**").permitAll()
                                 // 其他所有请求都需要认证
                                 .anyRequest().authenticated()
                 )

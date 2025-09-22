@@ -51,7 +51,7 @@ spring:
                 redis-rate-limiter.burstCapacity: 40
                 key-resolver: "#{@userKeyResolver}"
           metadata:
-            requiredRoles: ["USER_READ"]
+            requiredRoles: ["USER", "ADMIN"]
         - id: auth-api
           uri: http://eon-auth:3000
           predicates:
