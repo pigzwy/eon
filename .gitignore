@@ -10,6 +10,8 @@
 *.iws
 .vscode/
 .fleet/
+.spec-workflow
+.claude
 
 # Build outputs (Maven / multi-module)
 target/

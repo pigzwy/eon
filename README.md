@@ -24,15 +24,7 @@ eon
   - eon-common-swagger — 接口文档（占位）
   - eon-common-feign — feign 扩展封装
   - eon-common-xss — xss 安全封装（占位）
-- eon-register — Nacos Server [8848]（docker-compose）
 - eon-gateway — Spring Cloud Gateway 网关 [9999]
-- eon-upms — 通用用户权限管理模块（聚合）
-  - eon-upms-api — 公共 API 模块
-  - eon-upms-biz — 业务处理模块 [4000]
-- eon-visual — 辅助可视化（聚合）
-  - eon-monitor — 服务监控 [5001]
-  - eon-codegen — 图形化代码生成 [5002]
-  - eon-quartz — 定时任务管理台 [5007]
 
 ## 构建与运行
 
