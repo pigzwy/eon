@@ -106,6 +106,11 @@ gateway:
   cors:
     # 生产环境请在配置中心覆盖，多个用逗号分隔
     allowed-origins: http://localhost:5173
+# 调整日志级别便于调试网关过滤链与路由行为
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    com.eon.gateway: DEBUG
 #  sentinel:
 #    enabled: false
 #    dashboard: ${SENTINEL_DASHBOARD:}

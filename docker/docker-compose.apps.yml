@@ -80,8 +80,8 @@ services:
       NACOS_PASSWORD: nacos
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      AUTH_SERVER_ISSUER_URI: http://eon-auth:3000
-      AUTH_SERVER_JWKS_URI: http://eon-auth:3000/oauth2/jwks
+#      AUTH_SERVER_ISSUER_URI: http://eon-auth:3000
+#      AUTH_SERVER_JWKS_URI: http://eon-auth:3000/oauth2/jwks
     depends_on:
       eon-auth:
         condition: service_healthy
