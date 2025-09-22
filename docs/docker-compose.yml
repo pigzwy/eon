@@ -1,0 +1,76 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: nacos_config
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -uroot -proot -h 127.0.0.1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - nacos_net
+
+  nacos:
+    image: nacos/nacos-server:v2.5.1
+    container_name: nacos
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MODE: standalone
+      SPRING_DATASOURCE_PLATFORM: mysql
+      MYSQL_SERVICE_HOST: mysql
+      MYSQL_SERVICE_PORT: 3306
+      MYSQL_SERVICE_DB_NAME: nacos_config
+      MYSQL_SERVICE_USER: root
+      MYSQL_SERVICE_PASSWORD: root
+      MYSQL_SERVICE_DB_PARAM: "characterEncoding=utf8&connectTimeout=10000&socketTimeout=30000&autoReconnect=true&useSSL=false&serverTimezone=UTC"
+      NACOS_AUTH_ENABLE: "true"
+      NACOS_AUTH_TOKEN: "bXktc3VwZXItdG9rZW4tZ2VuZXJhdGVkLWJhc2U2NC0xMjM0NQ=="
+      NACOS_AUTH_IDENTITY_KEY: "serverIdentity"
+      NACOS_AUTH_IDENTITY_VALUE: "security"
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+      - "9849:9849"
+    networks:
+      - nacos_net
+
+  # 独立的 Redis 服务
+  redis:
+    image: redis:7.2
+    container_name: redis
+    command: ["redis-server", "--appendonly", "yes"]  # 开启 AOF 持久化
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - nacos_net
+
+volumes:
+  mysql_data:
+    name: nacos_mysql_data
+  redis_data:
+    name: nacos_redis_data
+
+networks:
+  nacos_net:
+    driver: bridge
